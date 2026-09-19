@@ -1,0 +1,144 @@
+# Implementation Plan: "Lexi Clear" Legal Dictionary Application
+
+Build a modern, responsive legal dictionary application called **Lexi Clear** ("Understand the law, simply.") featuring a Python Flask REST API backend, SQLite relational database, and an educational, mobile-first frontend UI.
+
+## User Review Required
+
+> [!IMPORTANT]
+> - **Backend & Database Selection**: The backend will be powered by Python 3.10 and **Flask** with a **SQLite** database (`lexi_clear.db`), which runs natively and persistently without requiring external database server setup.
+> - **Frontend Stack**: Built with modern, modular Vanilla JavaScript (ES6+), HTML5, and custom Vanilla CSS with Plus Jakarta Sans & Inter typography, Lucide-style SVG iconography, and responsive CSS grid/flexbox layouts. No heavy compile step is required, guaranteeing instant startup and flawless cross-browser compatibility.
+> - **Speech & OCR Capabilities**: Real Web Speech Recognition & Speech Synthesis APIs are supported with responsive fallback simulations for offline/restricted environments. The Scan feature includes both real text parsing/OCR extraction and 3 pre-loaded sample legal documents (Rental Agreement, FIR Complaint, Employment Contract) for immediate testing.
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TD
+    Client["Lexi Clear Mobile/Desktop Frontend<br/>(SPA with History Routing & Lucide Icons)"]
+    API["Flask REST API Server<br/>(Port 5000 / Dynamic Port)"]
+    DB[("SQLite Database<br/>lexi_clear.db")]
+    
+    Client -->|"GET /api/terms?q=...&category=..."| API
+    Client -->|"GET /api/terms/:slug"| API
+    Client -->|"POST /api/scan (Text / File OCR)"| API
+    Client -->|"POST /api/bookmarks/toggle"| API
+    Client -->|"GET /api/categories"| API
+    API --> DB
+```
+
+---
+
+## Proposed Changes
+
+### 1. Database & Backend Engine (Python + SQLite)
+
+#### [NEW] [database.py](file:///d:/backend/database.py)
+- SQLite database connection manager and schema initialization.
+- Tables:
+  - `categories`: `id`, `name`, `slug`, `description`, `icon`, `term_count`.
+  - `terms`: `id`, `category_id`, `name`, `slug`, `simple_meaning`, `detailed_explanation`, `example`, `key_points` (JSON string), `related_term_slugs` (JSON string), `is_popular` (boolean), `view_count` (int), `created_at`.
+  - `recent_views`: `id`, `term_id`, `viewed_at`.
+  - `bookmarks`: `id`, `term_id`, `created_at`.
+- Data seeding script containing 45+ comprehensive legal terms covering all 12 requested categories:
+  1. Criminal Law (Bail, FIR, Cognizable Offence, Non-Cognizable Offence, Warrant, Summons, Arrest, Charge Sheet, Anticipatory Bail, Remand)
+  2. Civil Law (Injunction, Specific Performance, Damages, Plaint, Written Statement, Res Judicata)
+  3. Constitutional Law (Habeas Corpus, Mandamus, Quo Warranto, Certiorari, Fundamental Rights, Judicial Review)
+  4. Family Law (Alimony, Restitution of Conjugal Rights, Custody, Annulment, Maintenance)
+  5. Corporate Law (Articles of Association, Ultra Vires, Piercing Corporate Veil, Fiduciary Duty, Liquidation)
+  6. Contract Law (Contract, Consideration, Breach of Contract, Indemnity, Guarantee, Voidable Contract)
+  7. Property Law (Easement, Conveyance, Freehold, Leasehold, Adverse Possession, Encumbrance)
+  8. Labour Law (Retrenchment, Collective Bargaining, Industrial Dispute, Layoff, Workmen's Compensation)
+  9. Cyber Law (Phishing, Identity Theft, Intermediary Liability, Data Breach, Cyberstalking)
+  10. Tax Law (Capital Gains Tax, Tax Evasion, Tax Avoidance, Advance Tax, Assessment Year)
+  11. Consumer Law (Unfair Trade Practice, Deficiency of Service, Product Liability, Restrictive Trade Practice)
+  12. Evidence Law (Hearsay, Burden of Proof, Estoppel, Dying Declaration, Circumstantial Evidence)
+
+#### [NEW] [app.py](file:///d:/backend/app.py)
+- Flask application exposing REST API endpoints and serving static frontend assets:
+  - `GET /api/categories`: List all 12 categories with metadata and term counts.
+  - `GET /api/categories/<slug>`: Get category details and terms.
+  - `GET /api/terms`: Filterable terms endpoint (support `search`, `category`, `alphabet`, `popular`, `limit`, `offset`).
+  - `GET /api/terms/<slug>`: Detailed term retrieval; automatically increments view count and updates recent views. Returns populated related terms.
+  - `GET /api/suggestions?q=`: Fast prefix autocomplete suggestions.
+  - `POST /api/scan`: Analyzes text or document uploads, compares against dictionary vocabulary, and returns matched legal terms with preview snippets.
+  - `GET /api/recent`: List recently viewed terms.
+  - `DELETE /api/recent`: Clear viewing history.
+  - `GET /api/bookmarks`: List all bookmarked terms.
+  - `POST /api/bookmarks/toggle`: Toggle bookmark state for a term.
+  - Frontend SPA fallback route serving `index.html`.
+
+---
+
+### 2. Frontend Application (`/static` & `/templates` or direct static serving)
+
+#### [NEW] [static/css/style.css](file:///d:/backend/static/css/style.css)
+- Design tokens & theme:
+  - Professional modern legal aesthetic: Trustworthy blues (`#1e40af`, `#2563eb`, `#3b82f6`), soft slate grays (`#f8fafc`, `#f1f5f9`, `#e2e8f0`), deep ink text (`#0f172a`, `#1e293b`), minimal warm gold accents (`#d97706`, `#fef3c7`), emerald green accents (`#059669`).
+  - Typography: Google Fonts `Plus Jakarta Sans` & `Inter`.
+  - Rounded cards: 14–16px border-radius, subtle multi-layered box-shadows, delicate 1px border lines.
+  - Micro-animations: Smooth badge hover, card elevation, wave ripple pulse for microphone, glowing scan laser line, drawer slide-in, toast transitions.
+  - Mobile-first responsive layouts: 1-col mobile, 2-col tablet, 3/4-col desktop.
+  - Full touch targets (minimum 44px) and visible focus rings for accessibility.
+
+#### [NEW] [static/js/api.js](file:///d:/backend/static/js/api.js)
+- API client wrapper with caching and error handling for all backend endpoints.
+
+#### [NEW] [static/js/state.js](file:///d:/backend/static/js/state.js)
+- Client-side reactive state manager: current route, search filters, audio state, scan state, bookmarks, recent history, and modal/toast notifications.
+
+#### [NEW] [static/js/components.js](file:///d:/backend/static/js/components.js)
+- Modular UI component renderers:
+  - `Header` & `Navigation` (desktop navbar with logo, search shortcut, and mobile bottom bar)
+  - `SearchBar` (with debounce suggestions, clear button, voice trigger, scan trigger)
+  - `TermCard` & `PopularTermCard` (term name, short meaning, category badge, arrow icon)
+  - `RecentTermCard` (with timestamp / quick remove)
+  - `CategoryCard` (icon, title, short description, term count, navigation arrow)
+  - `TermDetailView` (pronunciation TTS, simple meaning highlight card, detailed explanation, real-world scenario example card, key points list, related terms grid, share button, bookmark button)
+  - `CategoryDetailView` (category header, A-Z letter filters, search in category, term grid)
+  - `VoiceSearchModal` (active microphone animation, listening indicator, detected query, retry/cancel/search buttons)
+  - `ScanModal` (camera/file upload dropzone, sample document quick-loader, animated laser scanner, detected terms chip selector)
+  - `ShareModal` & `Toast` (copy link feedback, social sharing options)
+  - `LoadingSkeleton` & `EmptyState` (clean illustrated empty states)
+
+#### [NEW] [static/js/router.js](file:///d:/backend/static/js/router.js)
+- Router handling browser History API and hash routing:
+  - `/` -> Home Dashboard
+  - `/search` -> Dedicated Search Page
+  - `/categories` -> Legal Categories Grid
+  - `/categories/:slug` -> Category Terms Page (e.g. `/categories/criminal-law`)
+  - `/term/:slug` -> Legal Term Detail Page (e.g. `/term/bail`, `/term/habeas-corpus`)
+  - `/recent` -> Recently Viewed Terms Page
+  - `/bookmarks` -> Saved Terms Page
+
+#### [NEW] [static/index.html](file:///d:/backend/static/index.html)
+- Semantic HTML5 structure, SEO meta tags, Google Fonts, accessible landmarks (`header`, `main`, `nav`, `footer`).
+
+---
+
+## Verification Plan
+
+### Automated / Backend Verification
+1. Run Python database initialization script:
+   ```powershell
+   python -c "import database; database.init_db(); print('DB Initialized successfully')"
+   ```
+2. Test Flask REST API routes with curl or Python test script:
+   - `GET /api/terms?popular=true`
+   - `GET /api/terms/bail`
+   - `GET /api/categories`
+   - `GET /api/categories/criminal-law`
+   - `POST /api/scan` with sample text
+   - `POST /api/bookmarks/toggle`
+3. Verify all 12 categories are populated with proper slug mappings and term counts.
+
+### Frontend & Browser Verification
+1. Launch Flask server on `http://127.0.0.1:5000`.
+2. Open in headless browser via `browser_subagent` to verify:
+   - Homepage layout, tagline, search bar, popular cards, recent terms, and category cards.
+   - Search functionality: typing query, viewing real-time suggestions, filtering by category pills.
+   - Voice Search modal: triggering modal, waveform animation, listening state.
+   - Scan & Search modal: loading sample document, scanning animation, detecting terms, clicking term to navigate.
+   - Term Detail page: verifying "In simple words", Detailed Explanation, Example card, Key points, Audio pronunciation, Related Terms navigation.
+   - Responsive check: Mobile viewport (375px) vs Desktop viewport (1280px).
+   - Bottom navigation bar on mobile and desktop navigation bar.
